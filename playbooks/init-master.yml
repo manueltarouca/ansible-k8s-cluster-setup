@@ -1,0 +1,25 @@
+- name: Initialize Kubernetes Master
+  hosts: master
+  become: yes
+  tasks:
+    - name: Initialize the Kubernetes cluster
+      shell: |
+        kubeadm init --apiserver-advertise-address=<MASTER_IP> --pod-network-cidr=192.168.0.0/16
+      args:
+        creates: /etc/kubernetes/admin.conf
+
+    - name: Copy kubeconfig to user's home directory
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Install Calico CNI
+      shell: |
+        kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+      environment:
+        KUBECONFIG: /root/.kube/config
+      when: >
+        "calico" not in
+        lookup('pipe', 'kubectl get pods --namespace kube-system --kubeconfig=/root/.kube/config')

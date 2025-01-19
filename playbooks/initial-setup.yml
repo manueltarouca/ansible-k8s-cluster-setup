@@ -1,0 +1,72 @@
+---
+- name: Kubernetes Cluster Setup
+  hosts: master
+  become: yes
+  tasks:
+    - name: Install dependencies
+      yum:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+          - bash-completion
+        state: present
+
+    - name: Add Kubernetes YUM repository
+      copy:
+        dest: /etc/yum.repos.d/kubernetes.repo
+        content: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://pkgs.k8s.io/core:/stable:/v1.32/rpm/
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://pkgs.k8s.io/core:/stable:/v1.32/rpm/repodata/repomd.xml.key
+        owner: root
+        group: root
+        mode: 0644
+    - name: Add Docker CE YUM repository
+      copy:
+        dest: /etc/yum.repos.d/docker-ce.repo
+        content: |
+          [docker-ce-stable]
+          name=Docker CE Stable - $basearch
+          baseurl=https://download.docker.com/linux/rhel/$releasever/$basearch/stable
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://download.docker.com/linux/rhel/gpg
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Install Kubernetes components and Containerd
+      yum:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+          - containerd
+        state: present
+
+    - name: Create containerd configuration file
+      copy:
+        dest: /etc/containerd/config.toml
+        content: |
+          [plugins."io.containerd.grpc.v1.cri"]
+            systemd_cgroup = true
+      notify:
+        - Restart containerd
+
+    - name: Enable and start services
+      systemd:
+        name: '{{ item }}'
+        enabled: true
+        state: started
+      loop:
+        - containerd
+        - kubelet
+  handlers:
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted

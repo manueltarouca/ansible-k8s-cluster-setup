@@ -1,0 +1,15 @@
+- name: Join Worker Nodes
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Check if the worker node is already part of the cluster
+      shell: |
+        kubectl get nodes --kubeconfig=/root/.kube/config | grep $(hostname)
+      register: worker_join_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Join the cluster
+      shell: |
+        kubeadm join <MASTER_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
+      when: worker_join_check.rc != 0
